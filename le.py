@@ -386,8 +386,9 @@ class ACME(object):
         data = response.read()
         data = cryptography.x509.load_der_x509_certificate(data,
             backend=_backend)
-        data = data.public_bytes(
-            cryptography.hazmat.primitives.serialization.Encoding.PEM)
+        data = b''.join(c.public_bytes(
+                cryptography.hazmat.primitives.serialization.Encoding.PEM)
+            for c in self.app.download_chain(data))
         cert.write_certificate(data)
         return data
 
@@ -419,6 +420,38 @@ class LetsEncrypt(object):
         open(self.config['account_uri'], 'w').write(uri.strip() + '\n')
 
     uri = property(get_uri, set_uri)
+
+    def download_chain(self, cert):
+        yield cert
+
+        try:
+            extension = cert.extensions.get_extension_for_oid(
+                cryptography.x509.extensions.AuthorityInformationAccess.oid)
+        except cryptography.x509.extensions.ExtensionNotFound:
+            return
+
+        aia = extension.value
+        for description in aia:
+            if description.access_method != \
+                 cryptography.x509.oid.AuthorityInformationAccessOID.CA_ISSUERS:
+                continue
+
+            uri = description.access_location.value
+            response = urllib.request.urlopen(uri)
+            data = response.read()
+            if not data.startswith(b'-----BEGIN CERTIFICATE'):
+                continue
+
+            parent = cryptography.x509.load_pem_x509_certificate(data,
+                backend=_backend)
+
+            if parent.subject == parent.issuer:
+                return
+                # XXX shouldn't this be "continue"?
+                # that way it would get all paths
+
+            yield from self.download_chain(parent)
+            return
 
 
 CONFFILE = '/etc/ssl/le.conf'
