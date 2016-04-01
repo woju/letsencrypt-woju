@@ -383,8 +383,9 @@ class ACME(object):
                 continue
             break
 
-        data = response.read_all()
-        data = cryptography.x509.load_der_x509_certificate(data)
+        data = response.read()
+        data = cryptography.x509.load_der_x509_certificate(data,
+            backend=_backend)
         data = data.public_bytes(
             cryptography.hazmat.primitives.serialization.Encoding.PEM)
         cert.write_certificate(data)
