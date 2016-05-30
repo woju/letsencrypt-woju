@@ -422,12 +422,14 @@ class LetsEncrypt(object):
     uri = property(get_uri, set_uri)
 
     def download_chain(self, cert):
+        self.log.debug('download_chain(cert={!r})'.format(cert))
         yield cert
 
         try:
             extension = cert.extensions.get_extension_for_oid(
                 cryptography.x509.extensions.AuthorityInformationAccess.oid)
         except cryptography.x509.extensions.ExtensionNotFound:
+            self.log.debug('download_chain extension not found, return')
             return
 
         aia = extension.value
@@ -437,15 +439,26 @@ class LetsEncrypt(object):
                 continue
 
             uri = description.access_location.value
+            self.log.debug('download_chain fetching uri={!r}'.format(uri))
             response = urllib.request.urlopen(uri)
             data = response.read()
-            if not data.startswith(b'-----BEGIN CERTIFICATE'):
+
+            parent = None
+            for loader in (
+                    cryptography.x509.load_der_x509_certificate,
+                    cryptography.x509.load_pem_x509_certificate,
+                    ):
+                try:
+                    parent = loader(data, backend=_backend)
+                except ValueError:
+                    continue
+
+            if parent is None:
+                self.log.debug('download_chain not a certificate')
                 continue
 
-            parent = cryptography.x509.load_pem_x509_certificate(data,
-                backend=_backend)
-
             if parent.subject == parent.issuer:
+                self.log.debug('download_chain got self-signed'.format(uri))
                 return
                 # XXX shouldn't this be "continue"?
                 # that way it would get all paths
