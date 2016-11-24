@@ -25,9 +25,9 @@ Python 3 code. There are two dependencies: [cryptography][cryptography] and
 
 1. Install package, and its config file.
 
-  git checkout git://github.com/woju/le-woju
-  cd le-woju
-  python3 setup.py install
+    git clone https://github.com/woju/letsencrypt-woju.git
+    cd letsencrypt-woju
+    python3 setup.py install
 
 1. In config file (`/etc/ssl/le.conf`), adjust:
   a. your contact information:
